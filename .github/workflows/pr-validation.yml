@@ -11,8 +11,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 🔥 importante para evitar problemas de histórico
 
-      #  Validar descrição da PR
+      # Validar descrição da PR
       - name: Check PR description
         uses: actions/github-script@v7
         with:
@@ -20,18 +22,18 @@ jobs:
             const body = context.payload.pull_request.body || "";
 
             if (!body.includes("## Description")) {
-              core.setFailed("Missing 'Description' section.");
+              core.setFailed("Missing '## Description' section.");
             }
 
             if (!body.includes("## Checklist")) {
-              core.setFailed("Missing 'Checklist' section.");
+              core.setFailed("Missing '## Checklist' section.");
             }
 
             if (!body.includes("## Related Issue")) {
-              core.setFailed("Missing 'Related Issue' section.");
+              core.setFailed("Missing '## Related Issue' section.");
             }
 
-      #  Validar checklist
+      # Validar checklist
       - name: Check checklist completion
         uses: actions/github-script@v7
         with:
@@ -43,14 +45,15 @@ jobs:
               core.setFailed("All checklist items must be completed.");
             }
 
-      #  Validar se mexeu na pasta correta do grupo
+      # Validar se mexeu na pasta correta do grupo
       - name: Validate group folder changes
         run: |
           echo "Fetching base branch..."
           git fetch origin main
 
           echo "Checking changed files..."
-          files=$(git diff --name-only origin/main...HEAD)
+          # 🔥 CORREÇÃO AQUI (resolve o erro de merge base)
+          files=$(git diff --name-only origin/main..HEAD)
 
           echo "Changed files:"
           echo "$files"
@@ -69,7 +72,7 @@ jobs:
             exit 1
           fi
 
-      #  Validar padrão da branch
+      # Validar padrão da branch
       - name: Validate branch name
         run: |
           branch="${{ github.head_ref }}"

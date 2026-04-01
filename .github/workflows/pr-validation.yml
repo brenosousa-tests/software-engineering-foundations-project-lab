@@ -5,10 +5,14 @@ on:
     types: [opened, edited, synchronize]
 
 jobs:
-  validate-pr:
+  pr-validation:
+    name: PR Validation
     runs-on: ubuntu-latest
 
     steps:
+      # ----------------------------
+      # Validate PR description
+      # ----------------------------
       - name: Validate PR description
         uses: actions/github-script@v7
         with:
@@ -27,6 +31,9 @@ jobs:
               core.setFailed("Missing '## Related Issue'");
             }
 
+      # ----------------------------
+      # Validate checklist
+      # ----------------------------
       - name: Validate checklist
         uses: actions/github-script@v7
         with:
@@ -38,6 +45,9 @@ jobs:
               core.setFailed("Checklist not completed");
             }
 
+      # ----------------------------
+      # Validate branch name
+      # ----------------------------
       - name: Validate branch name
         run: |
           branch="${{ github.head_ref }}"
@@ -47,7 +57,10 @@ jobs:
             exit 1
           fi
 
-      - name: Validate changed files location (API SAFE)
+      # ----------------------------
+      # Validate group folder
+      # ----------------------------
+      - name: Validate changed files location
         uses: actions/github-script@v7
         with:
           script: |
@@ -72,8 +85,52 @@ jobs:
               core.setFailed("Files must be inside groups/group-XX/");
             }
 
-            const invalid = paths.filter(p => !p.startsWith(groupFolder.split('/').slice(0,2).join('/')));
+            const baseFolder = groupFolder.split('/').slice(0,2).join('/');
+
+            const invalid = paths.filter(p => !p.startsWith(baseFolder));
 
             if (invalid.length > 0) {
               core.setFailed("Files outside group folder detected");
+            }
+
+      # ----------------------------
+      # NEW: Validate file by stage
+      # ----------------------------
+      - name: Validate files by stage
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request.number;
+            const branch = context.payload.pull_request.head.ref;
+
+            const files = await github.paginate(
+              github.rest.pulls.listFiles,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr
+              }
+            );
+
+            const paths = files.map(f => f.filename);
+
+            console.log("Branch:", branch);
+            console.log("Files:", paths);
+
+            let expectedFile = "";
+
+            if (branch.includes("product-vision")) expectedFile = "product-vision.md";
+            else if (branch.includes("requirements")) expectedFile = "requirements.md";
+            else if (branch.includes("modeling")) expectedFile = "modeling.md";
+            else if (branch.includes("architecture")) expectedFile = "architecture.md";
+            else if (branch.includes("testing")) expectedFile = "testing.md";
+
+            if (!expectedFile) {
+              core.setFailed("Invalid branch naming for stage.");
+            }
+
+            const hasCorrectFile = paths.some(p => p.endsWith(expectedFile));
+
+            if (!hasCorrectFile) {
+              core.setFailed(`Expected file: ${expectedFile}`);
             }
